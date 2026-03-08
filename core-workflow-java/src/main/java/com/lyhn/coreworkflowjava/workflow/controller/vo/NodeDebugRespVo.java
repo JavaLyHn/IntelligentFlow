@@ -1,6 +1,7 @@
 package com.lyhn.coreworkflowjava.workflow.controller.vo;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.lyhn.coreworkflowjava.workflow.engine.domain.callbacks.GenerateUsage;
 import lombok.Data;
 
 @Data

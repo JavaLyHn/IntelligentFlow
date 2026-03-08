@@ -1,5 +1,6 @@
 package com.lyhn.coreworkflowjava.workflow.engine.domain;
 import com.lyhn.coreworkflowjava.workflow.engine.constants.NodeExecStatusEnum;
+import com.lyhn.coreworkflowjava.workflow.engine.domain.callbacks.GenerateUsage;
 import com.lyhn.coreworkflowjava.workflow.exception.NodeCustomException;
 import lombok.Data;
 

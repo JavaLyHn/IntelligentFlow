@@ -1,6 +1,8 @@
 package com.lyhn.coreworkflowjava.workflow.engine.domain;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import com.lyhn.coreworkflowjava.workflow.engine.domain.chain.Edge;
+import com.lyhn.coreworkflowjava.workflow.engine.domain.chain.Node;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
