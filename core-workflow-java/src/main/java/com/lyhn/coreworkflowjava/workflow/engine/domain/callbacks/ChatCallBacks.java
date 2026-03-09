@@ -15,6 +15,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+// 工作流执行过程中的事件管理中心
 @Slf4j
 public class ChatCallBacks {
     private String sid;

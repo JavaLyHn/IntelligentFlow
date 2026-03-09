@@ -2,6 +2,7 @@ package com.lyhn.coreworkflowjava.workflow.engine.domain;
 
 import com.lyhn.coreworkflowjava.workflow.engine.VariablePool;
 import com.lyhn.coreworkflowjava.workflow.engine.domain.chain.Node;
+import com.lyhn.coreworkflowjava.workflow.engine.node.callback.WorkflowMsgCallback;
 
 public record NodeState(Node node, VariablePool variablePool, WorkflowMsgCallback callback) {
     // 当前要执行的节点
