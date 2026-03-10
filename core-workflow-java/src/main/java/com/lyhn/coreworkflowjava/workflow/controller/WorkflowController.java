@@ -2,6 +2,7 @@ package com.lyhn.coreworkflowjava.workflow.controller;
 import com.lyhn.coreworkflowjava.workflow.engine.VariablePool;
 import com.lyhn.coreworkflowjava.workflow.engine.WorkflowEngine;
 import com.lyhn.coreworkflowjava.workflow.engine.domain.WorkflowDSL;
+import com.lyhn.coreworkflowjava.workflow.engine.node.StreamCallback;
 import com.lyhn.coreworkflowjava.workflow.engine.node.callback.SseStreamCallback;
 import com.lyhn.coreworkflowjava.workflow.engine.util.AsyncUtil;
 import com.lyhn.coreworkflowjava.workflow.flow.service.WorkflowService;
@@ -39,13 +40,27 @@ public class WorkflowController {
                 WorkflowDSL workflowDSL = workflowService.getWorkflowDSL(request.getFlowId());
                 workflowDSL.setUuid(request.getChatId());
 
-                SseStreamCallback callback = new SseStreamCallback(emitter);
+                StreamCallback callback = new SseStreamCallback(emitter);
                 workflowEngine.execute(workflowDSL, new VariablePool(), request.getInputs(), callback);
+
+                emitter.complete();
             } catch (Exception e) {
                 log.error("Workflow execution failed: {}", e.getMessage(), e);
                 emitter.completeWithError(e);
             }
         });
+
+        emitter.onTimeout(() -> {
+            log.warn("Workflow execution timeout");
+            emitter.complete();
+        });
+
+        emitter.onError(e -> {
+            log.error("SSE error: {}", e.getMessage(), e);
+            emitter.completeWithError(e);
+        });
+
+        return emitter;
     }
 
     @Data

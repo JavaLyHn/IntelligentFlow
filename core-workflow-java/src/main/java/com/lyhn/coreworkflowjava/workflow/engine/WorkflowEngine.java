@@ -9,6 +9,7 @@ import com.lyhn.coreworkflowjava.workflow.engine.domain.callbacks.ChatCallBackSt
 import com.lyhn.coreworkflowjava.workflow.engine.domain.callbacks.LLMGenerate;
 import com.lyhn.coreworkflowjava.workflow.engine.domain.chain.Node;
 import com.lyhn.coreworkflowjava.workflow.engine.node.NodeExecutor;
+import com.lyhn.coreworkflowjava.workflow.engine.node.StreamCallback;
 import com.lyhn.coreworkflowjava.workflow.engine.node.callback.WorkflowMsgCallback;
 import com.lyhn.coreworkflowjava.workflow.engine.util.FlowUtil;
 import lombok.extern.slf4j.Slf4j;
