@@ -58,6 +58,24 @@ public class VariablePool {
      * @param key - data.voice_url 表示从Map中获取key = data的map，然后再从这个map中获取key = voice_url的value
      *            - data[0].voice_url 表示从Map中获取key = data的列表，取第一个元素（是个map），然后从这个map中获取key = voice_url的value
      * @return
+     *
+     * // 简单访问
+     * variablePool.get("nodeId", "field")
+     *
+     * // 嵌套访问
+     * variablePool.get("nodeId", "obj.field")
+     *
+     * // 多层嵌套
+     * variablePool.get("nodeId", "obj.nested.field")
+     *
+     * // 数组访问
+     * variablePool.get("nodeId", "list[0]")
+     *
+     * // 数组元素属性
+     * variablePool.get("nodeId", "list[0].field")
+     *
+     * // 复杂组合
+     * variablePool.get("nodeId", "obj.list[0].nested.field")
      */
     @SuppressWarnings("unchecked")
     private Object getVal(Map map, String key) {

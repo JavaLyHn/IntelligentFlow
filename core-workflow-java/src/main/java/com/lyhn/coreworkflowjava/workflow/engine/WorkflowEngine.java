@@ -1,19 +1,27 @@
 package com.lyhn.coreworkflowjava.workflow.engine;
 
 import com.lyhn.coreworkflowjava.workflow.engine.constants.EndNodeOutputModeEnum;
+import com.lyhn.coreworkflowjava.workflow.engine.constants.NodeExecStatusEnum;
+import com.lyhn.coreworkflowjava.workflow.engine.constants.NodeStatusEnum;
 import com.lyhn.coreworkflowjava.workflow.engine.constants.NodeTypeEnum;
 import com.lyhn.coreworkflowjava.workflow.engine.context.EngineContextHolder;
 import com.lyhn.coreworkflowjava.workflow.engine.domain.NodeRunResult;
+import com.lyhn.coreworkflowjava.workflow.engine.domain.NodeState;
 import com.lyhn.coreworkflowjava.workflow.engine.domain.WorkflowDSL;
 import com.lyhn.coreworkflowjava.workflow.engine.domain.callbacks.ChatCallBackStreamResult;
 import com.lyhn.coreworkflowjava.workflow.engine.domain.callbacks.LLMGenerate;
+import com.lyhn.coreworkflowjava.workflow.engine.domain.chain.Edge;
 import com.lyhn.coreworkflowjava.workflow.engine.domain.chain.Node;
 import com.lyhn.coreworkflowjava.workflow.engine.node.NodeExecutor;
 import com.lyhn.coreworkflowjava.workflow.engine.node.StreamCallback;
 import com.lyhn.coreworkflowjava.workflow.engine.node.callback.WorkflowMsgCallback;
 import com.lyhn.coreworkflowjava.workflow.engine.util.FlowUtil;
+import com.lyhn.coreworkflowjava.workflow.exception.ErrorCode;
+import com.lyhn.coreworkflowjava.workflow.exception.NodeCustomException;
+import io.micrometer.common.util.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.util.CollectionUtils;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -68,6 +76,7 @@ public class WorkflowEngine {
             Node startNode = buildNodeExecuteChain(workflowDSL);
 
             // 初始化启动参数
+            // 用户的输入参数会填入变量池，并会关联到初始节点 startNode
             initializeStartNodeInputs(startNode, variablePool, inputs);
 
             // 执行编排的流程节点
@@ -88,5 +97,283 @@ public class WorkflowEngine {
         }
     }
 
+    /**
+     * Initialize start node inputs with user-provided values
+     */
+    private void initializeStartNodeInputs(Node startNode, VariablePool variablePool, Map<String, Object> inputs) {
+        for (Map.Entry<String, Object> entry : inputs.entrySet()) {
+            variablePool.set(startNode.getId(), entry.getKey(), entry.getValue());
+            if(log.isDebugEnabled()){
+                log.debug("Initialized start node input: {}.{} = {}", startNode.getId(), entry.getKey(), entry.getValue());
+            }
+        }
+    }
+
+    private void verifyWorkflow(WorkflowDSL workflowDSL) {
+        // 做一个简单的dsl校验，要求包含起始节点和结束节点，要求每个节点都能找到对应执行器
+        if (CollectionUtils.isEmpty(workflowDSL.getNodes()) || CollectionUtils.isEmpty(workflowDSL.getEdges())) {
+            throw new IllegalStateException("Invalid workflow DSL: missing start or end node");
+        }
+        for (Node node : workflowDSL.getNodes()) {
+            NodeTypeEnum nodeType = node.getNodeType();
+            if (nodeType == null) {
+                throw new IllegalStateException("Invalid workflow DSL: node type is null");
+            }
+            NodeExecutor executor = nodeExecutors.get(nodeType);
+            if (executor == null) {
+                throw new IllegalStateException("Invalid workflow DSL: no executor found for node type: " + nodeType);
+            }
+        }
+
+        // 环路检测 (Loop Detection)
+        // 使用 Kahn 算法 (基于入度的拓扑排序) 检测图中是否存在环
+        if (hasCycle(workflowDSL)) {
+            throw new IllegalStateException("Invalid workflow DSL: cycle detected");
+        }
+    }
+
+    /**
+     * Check for cycles in the workflow graph using Kahn's algorithm
+     */
+    private boolean hasCycle(WorkflowDSL workflowDSL) {
+        Map<String, Integer> inDegree = new HashMap<>();
+        Map<String, List<String>> adjList = new HashMap<>();
+
+        // Initialize in-degrees and adjacency list
+        for (Node node : workflowDSL.getNodes()) {
+            inDegree.put(node.getId(), 0);
+            adjList.put(node.getId(), new ArrayList<>());
+        }
+
+        // Build graph
+        for (Edge edge : workflowDSL.getEdges()) {
+            String u = edge.getSource();
+            String v = edge.getTarget();
+            adjList.get(u).add(v);
+            inDegree.put(v, inDegree.getOrDefault(v, 0) + 1);
+        }
+
+        // Add nodes with 0 in-degree to queue
+        Queue<String> queue = new java.util.LinkedList<>();
+        for (String nodeId : inDegree.keySet()) {
+            if (inDegree.get(nodeId) == 0) {
+                queue.offer(nodeId);
+            }
+        }
+
+        int processedCount = 0;
+        while (!queue.isEmpty()) {
+            String u = queue.poll();
+            processedCount++;
+
+            for (String v : adjList.get(u)) {
+                inDegree.put(v, inDegree.get(v) - 1);
+                if (inDegree.get(v) == 0) {
+                    queue.offer(v);
+                }
+            }
+        }
+
+        // If processed count != total nodes, there is a cycle
+        return processedCount != workflowDSL.getNodes().size();
+    }
+
+    /**
+     * 构建Node执行链路
+     *
+     * @param workflowDSL
+     * @return
+     */
+    public Node buildNodeExecuteChain(WorkflowDSL workflowDSL) {
+        try {
+            Node startNode = null;
+
+            // 构建Node Map
+            // 这一步主要把所有节点都准备好，尤其是找出起点。方法会先遍历整个 workflowDSL.getNodes()，一边收集所有节点定义，一边检查有没有 NodeType 是 START 的节点，把它作为整个流程的起点
+            Map<String, Node> nodeMap = new HashMap<>();
+            for (Node node : workflowDSL.getNodes()) {
+                if (node.getNodeType() == NodeTypeEnum.START) {
+                    startNode = node;
+                }
+                // 做一些基础属性的准备，最后统一塞进 nodeMap，后面构建链路时方便按 ID 快速查找
+                node.init();
+                nodeMap.put(node.getId(), node);
+            }
+
+            if (startNode == null) {
+                throw new IllegalStateException("No start node found in workflow");
+            }
+
+            // 根据边来构建执行策略
+            for (Edge edge : workflowDSL.getEdges()) {
+                // 1. 获取源节点和目标节点对象
+                String sourceNodeId = edge.getSource();
+                String targetNodeId = edge.getTarget();
+                Node sourceNode = nodeMap.get(sourceNodeId);
+                if (sourceNode == null) {
+                    throw new IllegalStateException("No node found for source node ID: " + sourceNodeId);
+                }
+                Node targetNode = nodeMap.get(targetNodeId);
+                if (targetNode == null) {
+                    throw new IllegalStateException("No node found for target node ID: " + targetNodeId);
+                }
+
+                if (targetNode.getPreNodes() == null) {
+                    targetNode.setPreNodes(new ArrayList<>());
+                }
+
+                // 2. 建立反向依赖：记录目标节点的前置节点 (PreNodes)
+                // 这用于后续执行时的依赖检查：只有所有 PreNodes 都执行完，TargetNode 才能执行
+                targetNode.getPreNodes().add(sourceNode);
+
+                // 3. 建立正向依赖：根据 Handle 类型决定是 "正常路径" 还是 "异常路径"
+                String handle = edge.getSourceHandle();
+                if (StringUtils.isNotBlank(handle)) {
+                    if (handle.startsWith(NodeTypeEnum.CONDITION_SWITCH_NORMAL_ONE_OF.getValue())) {
+                        // 正常响应的执行链路
+                        // 正常分支：Source 成功后 -> 执行 Target
+                        sourceNode.getNextNodes().add(targetNode);
+                    } else if (handle.startsWith(NodeTypeEnum.CONDITION_SWITCH_INTENT_CHAIN.getValue())) {
+                        // 异常case的执行链路
+                        // 异常/失败分支：Source 失败后 -> 执行 Target
+                        // fixme 尚未完全弄清楚astron_agent的异常场景，先简单实现一个，这里只处理了 intent_chain|fail_one_of 的异常场景
+                        sourceNode.getFailNodes().add(targetNode);
+                    }
+                } else {
+                    // 无异常分支流程场景
+                    sourceNode.getNextNodes().add(targetNode);
+                }
+            }
+            return startNode;
+        } catch (Exception e) {
+            // 构建执行链路失败
+            log.error("Failed to build node execute chain: {}", e.getMessage());
+            throw new NodeCustomException(ErrorCode.INVALID_NODE_CONFIGURATION);
+        }
+    }
+
+    // 编排节点执行顺序、控制工作流
+    /**
+     * Execute a single node
+     */
+    private void executeNode(Node node, VariablePool variablePool, WorkflowMsgCallback callback) throws Exception {
+        if (node.getStatus().executed()) {
+            // todo 我们这里先只实现单次的Node执行策略，后续可以扩展为支持循环执行的场景
+            // 已经执行过，则直接返回
+            return;
+        }
+        if (log.isDebugEnabled()) {
+            log.debug("prepare to executeNode: {}", node.getId());
+        }
+
+        // 1. 前置校验： node 执行的前提条件是所有的前置Node都已经执行完毕
+        // 如果发现还有前置节点未执行，就会先递归触发这些前置节点的执行
+        if (!CollectionUtils.isEmpty(node.getPreNodes())) {
+            for (Node preNode : node.getPreNodes()) {
+                if (!preNode.getStatus().executed()) {
+                    executeNode(preNode, variablePool, callback);
+                }
+            }
+        }
+
+        // 2. 如果当前节点为 MARK，则需要判断是否可以执行
+        // 比如一个mark节点，有两个前置节点AB，其中A执行成功，则执行当前节点；B为分支节点，执行失败，才执行当前节点；
+        // 若B执行成功，会将当前节点标记为SKIP；此时再执行A，执行成功，会到当前节点，正常来说也是可以执行的
+        // 判断规则：找到这个节点的所有前置节点，只要当前节点在前置节点的执行分支下，就执行；否则不执行，标记为SKIP
+        if (node.getStatus() == NodeStatusEnum.MARK) {
+            boolean canExecute = false;
+            for (Node preNode : node.getPreNodes()) {
+                if (preNode.getStatus() == NodeStatusEnum.SKIP) {
+                    continue;
+                } else if (preNode.getStatus() == NodeStatusEnum.ERROR) {
+                    if (preNode.getFailNodes().contains(node)) {
+                        // 在当前分支中，需要正常执行
+                        canExecute = true;
+                        break;
+                    }
+                } else if (preNode.getStatus() == NodeStatusEnum.SUCCESS) {
+                    if (preNode.getNextNodes().contains(node)) {
+                        // 在当前分支中，需要正常执行
+                        canExecute = true;
+                        break;
+                    }
+                }
+            }
+            if (!canExecute) {
+                // 不需要执行时
+                node.setStatus(NodeStatusEnum.SKIP);
+                return;
+            }
+        }
+
+        // 3. 执行当前节点
+        NodeTypeEnum nodeType = node.getNodeType();
+        NodeExecutor executor = nodeExecutors.get(nodeType);
+        if(executor == null) {
+            throw new IllegalStateException("No executor found for node type: " + nodeType);
+        }
+
+        // 更新节点状态为RUNNING
+        node.setStatus(NodeStatusEnum.RUNNING);
+
+        // 执行当前节点
+        NodeExecStatusEnum execStatus;
+        while (true) {
+            // 根据节点类型获取对应的节点执行器（例如 LLM 执行器、插件执行器或结束节点执行器），并交由执行器来完成具体的业务逻辑调用
+            NodeRunResult res = executor.execute(new NodeState(node, variablePool, callback));
+            execStatus = res.getStatus();
+            if (execStatus != NodeExecStatusEnum.ERR_RETRY) {
+                break;
+            }
+        }
+
+        // 4. 节点执行完毕，继续执行后续节点
+        if (execStatus == NodeExecStatusEnum.ERR_INTERUPT) {
+            // 异常中断整个流程
+            node.setStatus(NodeStatusEnum.ERROR);
+            throw new NodeCustomException(ErrorCode.INTERRUPTED_ERROR);
+        } else if (execStatus == NodeExecStatusEnum.ERR_FAIL_CONDITION) {
+            // 节点执行失败，则执行异常处理分支
+            node.setStatus(NodeStatusEnum.ERROR);
+            executeFailedCondition(node, variablePool, callback);
+        } else if (execStatus == NodeExecStatusEnum.ERR_CODE_MSG) {
+            // 节点执行失败，但是依然走正常分支
+            node.setStatus(NodeStatusEnum.ERROR);
+            executeNormalCondition(node, variablePool, callback);
+        } else {
+            // 节点执行成功
+            node.setStatus(NodeStatusEnum.SUCCESS);
+            // 继续触发正常路径上的后续节点
+            executeNormalCondition(node, variablePool, callback);
+        }
+    }
+
+    private void executeNormalCondition(Node node, VariablePool variablePool, WorkflowMsgCallback callback) throws Exception {
+        // 将异常分支的节点为未执行，则标记为skip；
+        for (Node failNode : node.getFailNodes()) {
+            if (!failNode.getStatus().executed()) {
+                failNode.setStatus(NodeStatusEnum.MARK);
+            }
+        }
+        // 需要注意的是，从正常流程的节点，也可能同样走到这个异常分支的节点，这里需要支持重启这个节点的状态
+
+        // 执行成功 或者 没有异常处理分支的场景
+        for (Node nextNode : node.getNextNodes()) {
+            executeNode(nextNode, variablePool, callback);
+        }
+    }
+
+    private void executeFailedCondition(Node node, VariablePool variablePool, WorkflowMsgCallback callback) throws Exception {
+        for (Node nextNode : node.getNextNodes()) {
+            if (!nextNode.getStatus().executed()) {
+                nextNode.setStatus(NodeStatusEnum.MARK);
+            }
+        }
+
+        // 执行失败
+        for (Node failNode : node.getFailNodes()) {
+            executeNode(failNode, variablePool, callback);
+        }
+    }
 
 }
