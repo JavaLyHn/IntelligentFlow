@@ -1,5 +1,6 @@
 package com.lyhn.coreworkflowjava.workflow.engine.constants;
 
+// 判断一个节点是否可以执行，核心要看它的所有前置节点是不是都已经执行完了
 public enum NodeStatusEnum {
     /**
      * 初始化

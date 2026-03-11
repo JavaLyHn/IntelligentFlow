@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+// 在整个工作流引擎中，Node 是最小的执行单元。它描述了：自己是谁、有哪些输入输出、跟哪些节点有关联、当前执行状态是啥、被执行了几次
 public class Node {
     /**
      * Node ID in format: "node-type::sequenceId"

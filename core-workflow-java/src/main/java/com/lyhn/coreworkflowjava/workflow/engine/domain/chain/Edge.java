@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+// 定义节点之间的连接关系
 public class Edge {
     /**
      * Source node ID
@@ -21,6 +22,8 @@ public class Edge {
     @JsonProperty("targetNodeId")
     private String targetNodeId;
 
+    // 用于条件判断或插件输出场景
+    // 某个节点输出了多个字段（如 LLM 输出 text 和 score）；你希望下游节点只依赖其中一个字段，就可以通过 sourceHandle 精确绑定
     /**
      * Source handle (output name from source node)
      */
