@@ -28,7 +28,6 @@ import java.util.concurrent.TimeoutException;
 
 // 所有节点执行器的抽象基类
 // AbstractNodeExecutor 是工作流节点执行器的抽象基类，实现了节点执行的通用逻辑，为所有类型的节点执行器提供了统一的执行框架，子类只需要实现具体的业务逻辑
-
 @Slf4j
 public abstract class AbstractNodeExecutor implements NodeExecutor {
     // 定义执行框架
@@ -36,7 +35,7 @@ public abstract class AbstractNodeExecutor implements NodeExecutor {
     public NodeRunResult execute(NodeState nodeState) throws Exception {
         Node node = nodeState.node();
 
-        // 执行次数
+        // 执行次数，用于支撑重试和限次控制
         int executeTime = node.getExecutedCount().addAndGet(1);
         RetryConfig retryConfig = node.getData().getRetryConfig();
         if(retryConfig == null){
@@ -46,7 +45,6 @@ public abstract class AbstractNodeExecutor implements NodeExecutor {
         // 有配置就使用超时控制，无论是否重试
         if(!BooleanUtil.isTrue(retryConfig.getShouldRetry())){
             // 不支持重试，但支持超时控制
-
             return this.doExecuteWithTimeOut(nodeState,retryConfig);
         }
 
@@ -138,6 +136,7 @@ public abstract class AbstractNodeExecutor implements NodeExecutor {
         WorkflowMsgCallback callback = nodeStage.callback();
         VariablePool variablePool = nodeStage.variablePool();
         String nodeId = node.getId();
+        // 节点类型
         NodeTypeEnum nodeType = node.getNodeType();
 
         log.info("Executing node: {} (type: {})", nodeId, nodeType);
@@ -225,6 +224,7 @@ public abstract class AbstractNodeExecutor implements NodeExecutor {
             Value value = input.getSchema().getValue();
 
             if(value.isReference()){
+                // 引用模式 从其他节点获取输出
                 if(value.getContent() instanceof java.util.Map){
                     @SuppressWarnings("unchecked")
                     Map<String, String> refMap = (Map<String, String>) value.getContent();
@@ -243,7 +243,7 @@ public abstract class AbstractNodeExecutor implements NodeExecutor {
                     log.warn("Reference content is not a Map for input '{}'", inputName);
                 }
             } else {
-                // 直接将value作为输入参数
+                // 字面量模式 直接将value作为输入参数
                 resolvedInputs.put(inputName, value.getContent());
                 if (log.isDebugEnabled()) {
                     log.debug("Resolved input '{}' from literal = {}", inputName, value.getContent());
