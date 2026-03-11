@@ -105,11 +105,14 @@ public abstract class AbstractNodeExecutor implements NodeExecutor {
         }
     }
 
+    // 将超时控制和重试机制结合在了一起，为所有节点执行器（如 LLMNodeExecutor ）提供了统一的执行框架
     // 节点执行的超时控制，负责在配置了超时时间的情况下，限制节点执行的最大等待时间
     protected NodeRunResult doExecuteWithTimeOut(NodeState nodeState, RetryConfig retryConfig) {
          // 设置了超时时间的场景
          if(retryConfig.timeOutEnabled()){
              try {
+                 // 将节点的实际执行逻辑 () -> this.doExecute(nodeState) 封装成一个 Callable 对象
+                 // 然后把它和从 retryConfig 中获取的超时时间一起，交给了 AsyncUtil
                  return AsyncUtil.callWithTimeLimit(retryConfig.toMillis(), TimeUnit.MILLISECONDS,
                          () -> this.doExecute(nodeState));
              } catch (TimeoutException | InterruptedException e) {
