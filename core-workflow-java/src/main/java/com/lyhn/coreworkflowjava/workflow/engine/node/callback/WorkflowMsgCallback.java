@@ -111,22 +111,26 @@ public class WorkflowMsgCallback implements StreamCallback {
     }
 
     public void finished(){
-        tag = false;
+        tag = false; // 停止异步消费任务
+        // 等待异步任务结束
         while(!scheduleTaskOver) {
             AsyncUtil.sleep(10);
         }
 
         // 需要等待异步线程任务执行完毕，然后再执行下面的内容
+        // 消费剩余的流式队列数据
         while (!chatCallBacks.getStreamQueue().isEmpty()) {
             var resp = chatCallBacks.getStreamQueue().poll();
             callback("stream", resp);
         }
 
+        // 消费有序队列数据
         while (!chatCallBacks.getOrderStreamResultQ().isEmpty()) {
             var resp = chatCallBacks.getOrderStreamResultQ().poll();
             clientCallback.callback("stream", resp.getNodeAnswerContent());
         }
 
+        // 通知客户端完成
         clientCallback.finished();
     }
 
