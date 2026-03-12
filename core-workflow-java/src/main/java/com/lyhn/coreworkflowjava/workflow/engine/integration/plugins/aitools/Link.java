@@ -11,6 +11,13 @@ import java.util.concurrent.TimeUnit;
 
 @Slf4j
 // 负责与AITools服务通信，获取工具的OpenAPI规范并解析为Tool实例
+/**
+ * Link的具体职责：
+ *      - 第一层是插件注册与描述，告诉系统现在有哪些工具可用，每个工具叫什么，什么时候该被调用，参数怎么传，返回值长啥样
+ *      - 第二层是执行与路由，当 Workflow 发起一次工具调用请求，Link 能根据工具名找到对应实现，把参数校验好，调用真正的插件逻辑，再把结果按约定格式返回
+ *      - 第三层是安全治理，比如鉴权、限流、超时、重试、审计日志，不然插件服务迟早被某个慢接口拖死，或者被某个误调用打穿
+ *      - 最后聊交互关系，Link 和谁打交道最频繁。上游主要是 Workflow 引擎和 Console Hub。Workflow 引擎在跑 PluginNode 的时候，会把工具调用请求丢给 Link，Link 执行完会把结果回传，Workflow 再把它当作变量池里的新数据继续往下跑
+ */
 public class Link {
     private static final Map<String, String> CONST_HEADERS = new HashMap<>();
 
