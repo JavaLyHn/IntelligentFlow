@@ -33,10 +33,12 @@ public class PluginServiceClient {
         Node node = nodeState.node();
         Map<String, Object> output;
         // 通过判断 pluginId 来决定调用哪个插件
+        // 内置的插件
         if (Objects.equals(node.getData().getNodeParam().get("pluginId"), "tool@8b2262bef821000")) {
             // TTS 工具
             output = getTtsIntegration().call(nodeState, inputs);
         } else {
+            // 外部的第三方插件
             output = aiToolsIntegration.call(nodeState, inputs);
         }
 

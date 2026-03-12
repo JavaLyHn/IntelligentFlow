@@ -74,6 +74,7 @@ public class AiToolsIntegration {
             for (Tool tool : link.getTools()) {
                 if (tool != null && operationId.equals(tool.getOperationId())) {
                     toolFound = true;
+                    // 插件节点在拿到执行上下文后，会先把 businessInput 里声明的字段提取出来，作为这次调用的业务入参集合
                     Map<String, Object> businessInputMap = getBusinessInput(actionInputs, businessInput);
 
                     try {
@@ -103,8 +104,8 @@ public class AiToolsIntegration {
     /**
      * Extract business input parameters from action input using recursive traversal.
      *
-     * @param actionInput   The input data structure to search through
-     * @param businessInput List of keys to extract
+     * @param actionInput   The input data structure to search through 要搜索的输入数据结构
+     * @param businessInput List of keys to extract 要提取的键列表
      * @return Map containing extracted business input parameters
      */
     private Map<String, Object> getBusinessInput(Map<String, Object> actionInput, List<String> businessInput) {
@@ -122,6 +123,7 @@ public class AiToolsIntegration {
             }
 
             // Use iterative approach with queue for breadth-first search
+            // 使用迭代方法进行广度优先搜索
             Queue<Object> iterQueue = new LinkedList<>();
             if (actionInput != null) {
                 iterQueue.offer(actionInput);
@@ -135,12 +137,14 @@ public class AiToolsIntegration {
                     Map<String, Object> iterMap = (Map<String, Object>) iterOne;
 
                     // Check if current key matches the target business input key
+                    // 检查当前键是否匹配目标业务输入键
                     if (iterMap.containsKey(inputKey)) {
                         businessInputMap.put(inputKey, iterMap.get(inputKey));
                         break;
                     }
 
                     // Add nested structures to queue for further processing
+                    // 添加嵌套结构到队列中进行进一步处理
                     for (Object value : iterMap.values()) {
                         if (value instanceof Map || value instanceof List) {
                             iterQueue.offer(value);
@@ -151,6 +155,7 @@ public class AiToolsIntegration {
                     List<Object> iterList = (List<Object>) iterOne;
 
                     // Add all nested structures from list to queue
+                    // 添加列表中的所有嵌套结构到队列
                     for (Object content : iterList) {
                         if (content instanceof Map || content instanceof List) {
                             iterQueue.offer(content);
