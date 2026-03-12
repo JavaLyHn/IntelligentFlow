@@ -9,6 +9,7 @@ import java.util.Map;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+// 封装了所有与超时和重试相关的行为
 public class RetryConfig {
 
     /**

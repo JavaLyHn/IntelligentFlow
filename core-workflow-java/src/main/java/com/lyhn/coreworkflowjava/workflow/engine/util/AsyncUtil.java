@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * 异步工具类
  */
-
+// 保证了调用方的逻辑不会被无限期阻塞，同时在大部分情况下让超时的任务自身自灭
 @Slf4j
 public class AsyncUtil {
     private static ThreadFactory THREAD_FACTORY = new ThreadFactory() {
@@ -65,6 +65,7 @@ public class AsyncUtil {
                 .build();
         // 包装一下线程池，避免出现上下文复用场景
         executorService = TtlExecutors.getTtlExecutorService(executorService);
+        // simpleTimeLimiter会与executorService绑定
         simpleTimeLimiter = SimpleTimeLimiter.create(executorService);
     }
 
@@ -89,6 +90,7 @@ public class AsyncUtil {
      * @return
      */
     public static <T> T callWithTimeLimit(long time, TimeUnit unit, Callable<T> call) throws ExecutionException, InterruptedException, TimeoutException {
+        // 接收一个 Callable<T> 对象，并将其提交到它在初始化时绑定的 executorService 线程池中执行
         return simpleTimeLimiter.callWithTimeout(call, time, unit);
     }
 

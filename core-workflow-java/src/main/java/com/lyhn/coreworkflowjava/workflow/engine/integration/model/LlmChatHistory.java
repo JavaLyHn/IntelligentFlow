@@ -15,7 +15,7 @@ import java.util.concurrent.TimeUnit;
  * Key: ChatId + NodeId组合
  * Value: 固定长度的对话历史记录列表
  */
-
+// 基于Guava的LoadingCache
 public class LlmChatHistory {
 
     /**
@@ -189,6 +189,7 @@ public class LlmChatHistory {
      * @return 缓存key
      */
     private static String generateKey(String chatId, String nodeId) {
+        // 缓存的 key 用 chatId 加 nodeId 拼出来，格式是 chatId，因为工作流里同一个 chatId 可能会跑过多个节点
         return chatId + ":" + nodeId;
     }
 
