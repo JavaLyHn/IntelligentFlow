@@ -57,7 +57,7 @@ public class AiToolsIntegration {
         String pluginBaseUrl = aitoolsUrl;
 
         Link link = new Link(
-                appId,
+                appId,// 定位工具归属和身份
                 Arrays.asList(pluginId),
                 pluginBaseUrl + "/api/v1/tools/versions",// 发现服务的 URL
                 pluginBaseUrl + "/api/v1/tools/http_run",// 执行服务的 URL

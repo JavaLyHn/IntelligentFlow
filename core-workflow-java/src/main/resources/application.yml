@@ -19,6 +19,7 @@ spring:
       connection-timeout: 30000
       idle-timeout: 600000
       max-lifetime: 580000
+      # 默认使用的database是1
       connection-test-query: SELECT 1
       validation-timeout: 5000
 

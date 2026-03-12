@@ -170,6 +170,7 @@ public class ToolBoxService extends ServiceImpl<ToolBoxMapper, ToolBox> {
         toolBoxDto.setVersion("V1.0");
         String schemaString = buildToolBox(toolBox, toolBoxDto);
         ToolProtocolDto toolProtocolDto = buildToolRequest(toolBoxDto, schemaString);
+        // 调用Link服务，实现新增工具
         ToolResp toolCreateResp = toolServiceCallHandler.toolCreate(toolProtocolDto);
         toolServiceCallHandler.dealResult(toolCreateResp);
         String toolId = ((JSONObject) toolCreateResp.getData()).getJSONArray("tools").getObject(0, Tool.class).getId();

@@ -24,6 +24,7 @@ public class ToolBoxController {
     @Resource
     ToolBoxService toolBoxService;
 
+    // 保存工具的Schema到Mysql和Redis
     @PostMapping("/create-tool")
     @Operation(summary = "Create plugin")
     @SpacePreAuth(key = "ToolBoxController_createTool_POST")

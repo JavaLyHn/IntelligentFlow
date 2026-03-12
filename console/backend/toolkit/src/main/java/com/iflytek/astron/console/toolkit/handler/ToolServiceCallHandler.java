@@ -51,6 +51,15 @@ public class ToolServiceCallHandler {
     }
 
 
+    /**
+     * // ToolManagementController.java
+     * @PostMapping("/versions")
+     * public ToolManagerResponse createVersion(@RequestBody ToolManagerRequest toolsInfo) {
+     *     return toolManagementService.createVersion(toolsInfo);
+     * }
+     * @param req
+     * @return
+     */
     public ToolResp toolCreate(ToolProtocolDto req) {
         String url = apiUrl.getToolUrl() + TOOL_VERSIONS_URL;
         log.info("toolCreate request url:{}\ndata:{}", url, JSON.toJSONString(req));
