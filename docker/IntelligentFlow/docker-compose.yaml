@@ -9,6 +9,8 @@ services:
   mysql:
     image: docker.m.daocloud.io/library/mysql:8.0
     container_name: intelligent-mysql
+    # 在容器启动命令中指定字符集
+    # utf8mp4支持所有Unicode字符 一劳永逸
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-123456}
@@ -62,6 +64,7 @@ services:
     restart: always
     command: server /data --console-address ":9001"
     healthcheck:
+      # 每隔几秒执行一次mysqladmin ping
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 30s
       timeout: 10s
@@ -123,6 +126,7 @@ services:
       SERVER_PORT: 8080
     ports:
       - "8080:8080"
+    # depends_on只保证容器按照顺序启动，不保证服务的真正可用
     depends_on:
       mysql:
         condition: service_healthy
@@ -166,7 +170,7 @@ services:
       - "7880:7880"
     depends_on:
       mysql:
-        condition: service_healthy
+        condition: service_healthy # 等mysql健康检查通过后才启动 因为尽管MySQL进程起来了，但可能MySQL还在初始化数据目录、执行启动脚本等
       redis:
         condition: service_healthy
       minio:

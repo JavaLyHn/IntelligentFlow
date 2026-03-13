@@ -37,6 +37,9 @@ http { \
     root /var/www; \
     access_log off; \
     location / { \
+      # SPA单页应用用的是前端路由,比如 /workflow/123。用户直接访问这个 URL 或者刷新页面，Nginx 会去找 /workflow/123 这个文件，找不到就 404
+      # try_files的作用是按顺序尝试查找文件 如果找不到就用最后一个
+      # 但是这个对静态资源不适用，一般会把静态资源放单独的目录比如/assets/，给这个目录单独配置location，而不用try_files
       try_files \$uri \$uri/ /index.html; \
       expires -1; \
     } \
