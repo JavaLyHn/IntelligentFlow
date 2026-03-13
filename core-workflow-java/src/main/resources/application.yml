@@ -14,7 +14,7 @@ spring:
     # 建表时也指定字符集
     url: jdbc:mysql://${MYSQL_HOST:192.168.47.128}:${MYSQL_PORT:3306}/${MYSQL_DB:paiflow-workflow}?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
     username: ${MYSQL_USER:root}
-    password: ${MYSQL_PASSWORD:PaiSmart2025}
+    password: ${MYSQL_PASSWORD:**}
     hikari: # HikariCP 默认会在获取连接时做检测，用一个轻量级的查询（比如 SELECT 1）验证连接是不是好的。这个开销很小，但能避免拿到坏连接。
       maximum-pool-size: 20 # 最多能有多少个连接 （一般 核心数 * 2 + 磁盘数）
       minimum-idle: 5 # 最少保持多少链接
