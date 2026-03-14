@@ -71,3 +71,82 @@ OpenTelemetry 是一套可观测性的开源标准和工具集。用OpenTwlwmetr
 
 熔断器的三个状态：CLOSED 正常调用、OPEN 直接走降级，不再调用下游、HALF_OPEN 试探性调用，成功则回复。我们的项目使用根据配置的ErrorStrategy决定是报错还是使用默认值
 具体实现是外部依赖降级 + 内部服务降级（workflow压力大使用hub层进行限流，超出阈值部分直接拒绝请求） + 读写分离降级（数据库压力大转为只读模式，用户能查看历史纪录但不能发起新任务）
+
+AI Agent相比普通LLM调用，不知能回答问题，还能规划任务（面对一个复杂任务，会将它拆分为一个个小任务，然后一步步执行）、使用工具（调用搜索引擎、查询天气等，再把结果喂回给LLM）、循环思考（"感知-决策-行动"的循环，是 Agent 的核心特征，例如发现信息不够会自己搜集），直到完成目标
+
+ReAct = Reasoning + Acting 是一种让大模型边思考边行动（交替思考和行动）的范式
+![img.png](img.png)
+本项目的AgentNode中有reasoning、answer、query三个部分，我们通过 prompt 告诉 LLM "先推理你需要做什么，然后决定调用哪个工具，最后根据结果给出答案"。
+
+RAG（检索增强生成）: 大模型的知识是训练时固定的，可能过时或者不全。RAG 就是在调用大模型前，先从知识库里检索相关内容，塞到 Prompt 里，让大模型"看着资料回答"。
+用户内容 -> 向量化 -> 在向量数据库中检索相关内容 -> 将文档内容+用户问题组装成Prompt发送给LLM -> 调用大模型 -> 返回答案
+RAG的优点为**知识可更新、可追溯来源、大幅减少大模型幻觉**。
+
+FunctionCalling是工具调用，让大模型调用外部函数/API的能力。工具描述要说清楚，大模型是依靠Prompt里的工具描述（name和description）来选择调用最符合的工具。
+
+MCP 是 Anthropic 提出的"模型上下文协议"，目的是标准化大模型和外部工具的交互方式。以前每个工具都要单独对接，写一堆适配代码。MCP 定义了统一的协议，工具实现 MCP Server，应用实现 MCP Client，就能互联互通。
+MCP核心概念有Resources：只读数据源（文件、数据库）、Tools：可执行的功能（API 调用、代码执行）、Prompts：预定义的提示词模板。通信方式有stdio：通过标准输入输出通信，适合本地工具、SSE：通过 HTTP SSE 通信，适合远程服务。
+
+FunctionCall&MCP ： FunctionCall是函数调用，允许LLM根据用户的自然语言输入识别他需要什么工具以及格式化的工具调用的能力；MCP提供了一个通用的协议框架来发现、定义、以及调用外部系统提供的工具能力。两个是协作关系不是替代关系。
+
+Agent规划：Agent能把一个复杂任务分解为多个子任务，然后按顺序或并行执行。简单场景用预定义工作流保证可控，复杂场景用 AgentNode 实现动态规划。
+
+多 Agent 协作是让多个 Agent 一起完成任务，每个 Agent 有自己的角色和专长。AutoGen、CrewAI、LangGraph、MetaGpt等。
+常见的协作模式：分工型、讨论型、层级型。
+
+设计自主决策的AI Agent
+![img_4.png](pic/img_4.png)
+
+Skills 是 Anthropic 为 Claude 预置的一套最佳实践指南，本质上是一些 SKILL.md 文件，里面包含了针对特定任务的详细操作步骤和注意事项。Skills 更像是"操作手册"或"最佳实践文档"，是静态的知识，不是实时调用的能力。
+![img_5.png](pic/img_5.png)
+一个标准的 Skill 目录结构：
+my-skill/
+├── SKILL.md              # 必需，技能定义文件
+├── examples/             # 可选，使用示例
+│   ├── example1.md
+│   └── example2.md
+├── scripts/              # 可选，辅助脚本
+│   └── helper.py
+└── resources/            # 可选，其他资源
+└── template.json
+
+SKILL.md 文件格式：
+---
+name: pdf-processor （必填）
+description: 帮助 Claude 更好地处理 PDF 文件，包括提取表单字段、填写 PDF、转换格式等 （必填）
+---
+
+# PDF 处理技能
+
+## 能力说明
+这个技能让你能够：
+1. 提取 PDF 中的表单字段
+2. 填写 PDF 表单
+3. 将 PDF 转换为其他格式
+
+## 使用指南
+
+### 提取表单字段
+当用户要求提取 PDF 表单时，使用以下步骤：
+1. 首先分析 PDF 结构
+2. 识别所有表单字段
+3. 输出字段列表，包含字段名、类型、当前值
+
+### 填写表单
+...
+
+## 示例
+参见 examples/ 目录中的具体用例
+
+## 注意事项
+- 处理大型 PDF 时要注意内存
+- 某些加密 PDF 可能无法处理
+
+Skills的**渐进式披露**（Progressive Disclosure）：是Skills的最核心的设计思想，解决的是上下文窗口有限的问题。传统做法是将所有工具说明、使用指南都塞进 System Prompt，导致：Token 消耗巨大（可能几万 Token 的说明）、无关信息干扰模型判断、上下文空间被挤占。
+而Skills是分阶段、按需的香LLM提供关于可用工具的信息，而不是一次性将所有工具的全部细节都塞进提示词中 。
+![img_6.png](pic/img_6.png)
+
+使用时机
+
+![img_7.png](pic/img_7.png)
+
