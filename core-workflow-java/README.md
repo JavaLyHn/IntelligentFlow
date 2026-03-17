@@ -170,3 +170,89 @@ SSE的数据格式：
 实现方式是SpringBoot提供了SseEmitter类实现SSE（设置超时时间为5min，及覆盖大部分正常请求，又不让异常连接占用太久资源），有些代理服务器会断开长时间没数据的连接，所以要定期发送心跳，保持连接活跃。
 在Intelligent中，Hub负责接收前端请求，通过http调用workflow引擎，workflow引擎返回的也是SSE流，hub层每接收到一个chunk立刻转发给前端一个chunk，实现端到端的流式体验。
 正常完成，触发 onCompletion 回调；超时，触发onTimeout 回调，并且主动关闭连接清理资源；客户端主动断开，触发onError 回调。但是有一个问题，就是异步线程可能还在往emitter中发送数据，但是此时连接已经断开了，所以我设计了一个AtomicBoolean标记为来标记连接状态，三个回调中都将替他设计为false，这样每次发送前检测，如果断开就不发送数据了。
+
+首字响应延迟（TTFT）指从用户发送请求到看到第一个字的时间。这个指标对用户体验十分重要，哪怕后面生成得再快，如果开头要等两三秒，用户就会觉得"卡"。优化的关键是**减少各环节的等待时间**。
+优化方式：
+    1. HTTP连接复用，每次请求新建TCP连接很慢，三次握手就要几十毫秒。我们用OkHttp连接池复用已有连接。这样大部分请求能直接复用链接，省掉了TCP握手的时间。
+    2. LLM 调用优化。LLM 服务响应是最大的延迟来源。要尽量减少 prompt 长度，提供 Skills 这些技术给 LLM，以减少 prompt 长度。另外，我们对历史对话也做了截断和压缩：
+    3. 使用流式接口。确保用的是 LLM 的 stream 模式，而不是等全部生成完再返回。
+    4. 非关键路径异步化，有些操作不影响首字输出，可以放到后台异步执行。比如日志记录、统计埋点。
+    5. 并行预处理，有些前置操作可以并行执行。比如校验用户权限、加载工作流配置、检查限流，这些互不依赖，可以并行。对这些操作统一使用CompletableFuture.supplyAsync进行调用，最后使用CompletableFuture.allOf(...,...,...,).join()来等待所有前置检查完成。
+
+流式响应中，如何保证消息的有序性？我们响应链路大致是LLM 服务 → Workflow 引擎 → Hub 服务 → Nginx → 前端。理论上TCP保证了传输层的有序性，但是实际中使用多线程处理消息，线程的调度顺序是不确定的，所以要在应用层自己保证有序性。
+一开始使用newSingleThreadExecutor每个 SSE 连接的消息发送都在同一个线程里顺序执行，但是并发量上来就会成为瓶颈。接着我们为每一个会话创建一个队列。每个会话有自己的队列和发送线程，消息先进先出，天然保证顺序。不同会话之间互不影响，也不会有并发瓶颈。同时，及时发送端保证了顺序，也要提防网络传输或者中间件出现问题，于是为每一个信息加上序号，前端可以据此校验和排序，因为SSE协议本身支持ID字段，可以把序号放在 id 里，让序号作为事件id。
+前端收到消息后，不能直接渲染，要先检查序号是否连续。如果发现有跳号，说明有消息乱序或丢失，需要处理（加入到缓冲队列中）。
+
+双队列架构消除 SSE 响应乱序与丢包：工作流执行时，可能多个节点同时产生输出，每个LLM节点的流式输出是异步的，直接往SseEmitter写消息会乱序。使用双队列架构，将接受和发送彻底解耦，用两个独立的队列：接收队列专门负责从上游接收数据，快速入队，不做复杂处理；发送队列存放待发送的、已经排好序的消息，发送线程从这里取。
+
+服务端感知断开的方式有：
+    1. 通过SseEmitter的回调感知（正常完成、超时完成、异常）
+    2. 往已断开的链接发送数据会抛出IOException
+    3. 有时候客户端已经断开了，但是服务端还没有发送数据，通过定时向客户端发送一条心跳检测消息来主动探测连接状态
+断开后释放资源的流程是：
+    1. 标记连接已断开，防止其他线程继续操作
+    2. 调用ScheduledFuture.remove移除心跳机制
+    3. 通知上游停止任务
+    4. 取消处理任务
+    5. 清理消息队列
+    6. 关闭 SseEmitter
+    7. 清理连接状态
+
+长轮询和SSE的区别：
+
+![img_10.png](pic/img_10.png)
+
+SSE的优势：连接开销小，一个链接用到底；实时性好，SSE是持续推送，数据来了就能立刻发出去，不存在空窗期；SSE直接往流里写数据就好，而长轮询要维护请求-响应的对应关系，超市要处理、客户端没及时发送请求要兜底；浏览器原生支持SSE，有标准的EventSource API、消息类型等，不用自己实现。
+
+线程池的流程：首先检查核心线程数是否已满，没满就创建线程，已满就将任务加入队列，如果队列满了，再检查是否超过最大线程数，没超过就创建线程，超过就拒绝任务。
+本项目的线程池有：
+    1. SSE发送线程池，IO密集型，大部分线程在等待，可以多开一些线程
+        @Bean("sseSendExecutor")
+        public ThreadPoolExecutor sseSendExecutor() {
+        return new ThreadPoolExecutor(
+        20,                          // 核心线程：支撑日常并发
+        100,                         // 最大线程：应对突发流量
+        60, TimeUnit.SECONDS,        // 空闲 60 秒回收
+        new LinkedBlockingQueue<>(500),  // 队列容量 500
+        new ThreadFactoryBuilder().setNameFormat("sse-send-%d").build(),
+        new ThreadPoolExecutor.CallerRunsPolicy()  // 满了就让调用者自己执行，保证不丢失
+        );
+        }
+    2. 工作流执行线程池，混合密集型，CPU干活多，开过多会增大开销
+        @Bean("workflowExecutor")
+        public ThreadPoolExecutor workflowExecutor() {
+        int cpuCount = Runtime.getRuntime().availableProcessors();
+        return new ThreadPoolExecutor(
+        cpuCount * 2,                // 核心线程：CPU 核数的 2 倍
+        cpuCount * 4,                // 最大线程：CPU 核数的 4 倍
+        30, TimeUnit.SECONDS,
+        new LinkedBlockingQueue<>(200),
+        new ThreadFactoryBuilder().setNameFormat("workflow-%d").build(),
+        new ThreadPoolExecutor.AbortPolicy()  // 满了就抛异常，快速失败
+        );
+        }
+    3. 定时任务线程池
+        @Bean("scheduledExecutor")
+        public ScheduledExecutorService scheduledExecutor() {
+        return new ScheduledThreadPoolExecutor(
+        4,  // 4 个核心线程足够
+        new ThreadFactoryBuilder().setNameFormat("scheduled-%d").build()
+        );
+        }
+
+为什么用 SynchronousQueue 而不是 LinkedBlockingQueue，因为SynchronousQueue 是一个"没有容量"的队列，每个 put 必须等待一个 take。
+
+![img_11.png](pic/img_11.png)
+
+java5引入的Future只能检查任务是否完成，阻塞等待结果，而java8引入的CompletableFuture可以异步回调、链式代码、组合多个异步任务。
+使用CompletableFuture要指定线程池，不然会用默认的ForkJoinPool.commonPool()，它是全局共享的，任务多了会互相影响；异常要处理CompletableFuture 的异常不会自动抛出，不处理就丢了。记得用 exceptionally 或 handle 来捕获。
+
+@Async注解工作原理：@Async是Spring提供的注解，让方法异步执行，Spring 通过 AOP 代理实现，调用 @Async 方法时，实际上是代理对象把任务提交到线程池。
+坑：
+    1. 同类调用不生效，可以使用注入或者拆到另一个类
+    2. 需要开启@EnableAsync
+    3. 返回值职能制void或者Future
+    4. 异步方法的异常不会抛到调用者，需要单独配置 AsyncUncaughtExceptionHandler。
+    5. 指定线程池
+
+TTL(TTransmittableThreadLocal)用于解决线程池场景下ThreadLocal值传递的问题
