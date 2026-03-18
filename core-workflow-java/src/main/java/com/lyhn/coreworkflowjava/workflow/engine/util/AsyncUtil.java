@@ -6,16 +6,8 @@ import com.google.common.util.concurrent.SimpleTimeLimiter;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.Arrays;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -110,5 +102,28 @@ public class AsyncUtil {
             log.error("线程被中断", e);
             Thread.currentThread().interrupt();
         }
+    }
+
+    /**
+     * 异步执行，自动传递上下文、处理异常
+     */
+    public static CompletableFuture runAsync(Runnable task) {
+        return CompletableFuture.runAsync(() -> {
+            try {
+                task.run();
+            } catch (Exception e) {
+                // 统一记录异常，不会被吞掉
+                log.error("异步任务执行失败");
+                throw e;
+            }
+        }, executorService);
+    }
+
+    // 并行执行多个任务，等待全部完成
+    public static void runAllAsync(Runnable... runnables){
+        CompletableFuture[] futures = Arrays.stream(runnables)
+                .map(AsyncUtil::runAsync)
+                .toArray(CompletableFuture[]::new);
+        CompletableFuture.allOf(futures).join();
     }
 }
