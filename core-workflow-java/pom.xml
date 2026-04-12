@@ -32,6 +32,7 @@
         <guava.version>33.5.0-jre</guava.version>
         <minio.version>8.5.7</minio.version>
         <dashscope-sdk-java.version>2.22.3</dashscope-sdk-java.version>
+        <langgraph4j.version>1.8.11</langgraph4j.version>
     </properties>
 
     <dependencies>
@@ -143,6 +144,11 @@
             <artifactId>dashscope-sdk-java</artifactId>
             <version>${dashscope-sdk-java.version}</version>
         </dependency>
+
+        <dependency>
+            <groupId>org.bsc.langgraph4j</groupId>
+            <artifactId>langgraph4j-core</artifactId>
+        </dependency>
     </dependencies>
 
     <dependencyManagement>
@@ -151,6 +157,13 @@
                 <groupId>org.springframework.ai</groupId>
                 <artifactId>spring-ai-bom</artifactId>
                 <version>${spring-ai.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.bsc.langgraph4j</groupId>
+                <artifactId>langgraph4j-bom</artifactId>
+                <version>${langgraph4j.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
