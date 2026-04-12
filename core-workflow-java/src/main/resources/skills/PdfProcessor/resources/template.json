@@ -1,0 +1,19 @@
+{
+  "name": "pdf-processor-workflow",
+  "description": "PDF文档解析工作流模板",
+  "nodes": [
+    {"id": "node-start::001", "type": "node-start", "name": "开始"},
+    {"id": "spark-llm::002", "type": "spark-llm", "name": "需求理解", "prompt": "理解用户的PDF处理需求，确定处理策略"},
+    {"id": "plugin::003", "type": "plugin", "name": "OCR识别", "toolId": "ocr"},
+    {"id": "ifly-code::004", "type": "ifly-code", "name": "内容结构化", "code": "structure_content(input)"},
+    {"id": "spark-llm::005", "type": "spark-llm", "name": "内容分析", "prompt": "对提取的PDF内容进行分析和摘要"},
+    {"id": "node-end::006", "type": "node-end", "name": "结束"}
+  ],
+  "edges": [
+    {"source": "node-start::001", "target": "spark-llm::002"},
+    {"source": "spark-llm::002", "target": "plugin::003"},
+    {"source": "plugin::003", "target": "ifly-code::004"},
+    {"source": "ifly-code::004", "target": "spark-llm::005"},
+    {"source": "spark-llm::005", "target": "node-end::006"}
+  ]
+}

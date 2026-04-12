@@ -1,0 +1,17 @@
+{
+  "name": "data-analysis-workflow",
+  "description": "数据分析工作流模板",
+  "nodes": [
+    {"id": "node-start::001", "type": "node-start", "name": "开始"},
+    {"id": "spark-llm::002", "type": "spark-llm", "name": "需求理解", "prompt": "理解用户的数据分析需求，确定分析维度"},
+    {"id": "ifly-code::003", "type": "ifly-code", "name": "数据处理", "code": "process_data(input)"},
+    {"id": "spark-llm::004", "type": "spark-llm", "name": "洞察生成", "prompt": "根据数据处理结果生成分析洞察"},
+    {"id": "node-end::005", "type": "node-end", "name": "结束"}
+  ],
+  "edges": [
+    {"source": "node-start::001", "target": "spark-llm::002"},
+    {"source": "spark-llm::002", "target": "ifly-code::003"},
+    {"source": "ifly-code::003", "target": "spark-llm::004"},
+    {"source": "spark-llm::004", "target": "node-end::005"}
+  ]
+}

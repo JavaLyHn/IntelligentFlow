@@ -1,0 +1,15 @@
+{
+  "name": "podcast-writing-workflow",
+  "description": "播客写作工作流模板",
+  "nodes": [
+    {"id": "node-start::001", "type": "node-start", "name": "开始"},
+    {"id": "spark-llm::002", "type": "spark-llm", "name": "脚本生成", "prompt": "根据主题生成播客脚本"},
+    {"id": "plugin::003", "type": "plugin", "name": "超拟人语音合成", "toolId": "smarttts"},
+    {"id": "node-end::004", "type": "node-end", "name": "结束"}
+  ],
+  "edges": [
+    {"source": "node-start::001", "target": "spark-llm::002"},
+    {"source": "spark-llm::002", "target": "plugin::003"},
+    {"source": "plugin::003", "target": "node-end::004"}
+  ]
+}
