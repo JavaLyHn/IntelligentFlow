@@ -102,6 +102,10 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
     return nodeType === 'agent';
   }, [nodeType]);
 
+  const isMultiAgentNode = useMemo(() => {
+    return nodeType === 'multi-agent';
+  }, [nodeType]);
+
   const isStartOrEndNode = useMemo(() => {
     return nodeType === 'node-start' || nodeType === 'node-end';
   }, [nodeType]);
@@ -204,6 +208,7 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
     isIteratorNode,
     isIteratorChildNode,
     isAgentNode,
+    isMultiAgentNode,
     isStartOrEndNode,
     isCodeNode,
     isDataBaseNode,

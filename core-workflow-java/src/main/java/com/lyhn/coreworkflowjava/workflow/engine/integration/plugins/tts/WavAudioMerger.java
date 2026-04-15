@@ -118,4 +118,28 @@ public class WavAudioMerger {
     }
 
     private record WavFormat(int channels, int sampleRate, int bitsPerSample) {}
+
+    public static byte[] mergeMp3Chunks(List<byte[]> chunks) {
+        if (chunks == null || chunks.isEmpty()) {
+            throw new IllegalArgumentException("No audio chunks to merge");
+        }
+        if (chunks.size() == 1) {
+            return chunks.get(0);
+        }
+
+        int totalSize = 0;
+        for (byte[] chunk : chunks) {
+            totalSize += chunk.length;
+        }
+
+        byte[] merged = new byte[totalSize];
+        int offset = 0;
+        for (byte[] chunk : chunks) {
+            System.arraycopy(chunk, 0, merged, offset, chunk.length);
+            offset += chunk.length;
+        }
+
+        log.info("[WavAudioMerger] Merged {} MP3 chunks into {} bytes", chunks.size(), totalSize);
+        return merged;
+    }
 }

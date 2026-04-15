@@ -77,8 +77,15 @@ public class SmartTTSIntegration implements TtsIntegration {
         }
 
         // Perform Smart TTS synthesis
-        // 调用核心合成方法
-        byte[] audioData = performSmartTTSSynthesis(text, vcn, speed, appId, apiKey, apiSecret);
+        // 调用核心合成方法（支持智能分块+并发处理）
+        byte[] audioData;
+        byte[] textBytes = text.getBytes(StandardCharsets.UTF_8);
+        if (textBytes.length > 500) {
+            log.info("Long text detected ({} bytes), using smart chunking + concurrent processing", textBytes.length);
+            audioData = performChunkedTTSSynthesis(text, vcn, speed, appId, apiKey, apiSecret);
+        } else {
+            audioData = performSmartTTSSynthesis(text, vcn, speed, appId, apiKey, apiSecret);
+        }
 
         // Upload audio file to Minio and get URL
         // 上传音频到S3
@@ -141,6 +148,27 @@ public class SmartTTSIntegration implements TtsIntegration {
             webSocket.close(1000, "Timeout or error");
             throw new RuntimeException("TTS synthesis failed: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Performs chunked TTS synthesis using SmartTextChunker + ConcurrentTtsProcessor
+     */
+    private byte[] performChunkedTTSSynthesis(String text, String vcn, Integer speed,
+                                               String appId, String apiKey, String apiSecret) throws Exception {
+        SmartTextChunker chunker = new SmartTextChunker();
+        ConcurrentTtsProcessor processor = new ConcurrentTtsProcessor();
+
+        List<SmartTextChunker.TextChunk> chunks = chunker.chunk(text);
+        log.info("Text split into {} chunks by SmartTextChunker", chunks.size());
+
+        ConcurrentTtsProcessor.TtsSynthesisFunction synthesisFunction =
+                (chunkText, v) -> performSmartTTSSynthesis(chunkText, v, speed, appId, apiKey, apiSecret);
+
+        List<byte[]> audioChunks = processor.processChunks(chunks, synthesisFunction, vcn);
+
+        byte[] merged = WavAudioMerger.mergeMp3Chunks(audioChunks);
+        log.info("Chunked TTS completed: {} chunks merged into {} bytes", audioChunks.size(), merged.length);
+        return merged;
     }
 
     /**

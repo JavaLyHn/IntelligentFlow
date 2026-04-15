@@ -16,6 +16,7 @@ import { ExtractorParameterDetail } from '@/components/workflow/nodes/extractor-
 import { VariableMemoryDetail } from '@/components/workflow/nodes/variable-memory';
 import { FlowDetail } from '@/components/workflow/nodes/flow';
 import { AgentDetail } from '@/components/workflow/nodes/agent';
+import { MultiAgentDetail } from '@/components/workflow/nodes/multi-agent';
 import { QuestionAnswerDetail } from '@/components/workflow/nodes/question-answer';
 import { NodeCommonProps } from '@/components/workflow/types/hooks';
 import { RpaDetail } from '@/components/workflow/nodes/rpa';
@@ -47,6 +48,7 @@ export const nodeTypeComponentMap: Record<
   'iteration-node-end': EndDetail,
   iteration: IteratorDetail,
   agent: AgentDetail,
+  'multi-agent': MultiAgentDetail,
   'node-variable': VariableMemoryDetail,
   'extractor-parameter': ExtractorParameterDetail,
   'text-joiner': TextHandleDetail,

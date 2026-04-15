@@ -539,6 +539,22 @@ function validateAgentParams(currentCheckNode: unknown): boolean {
   );
 }
 
+function validateMultiAgentParams(currentCheckNode: unknown): boolean {
+  if (currentCheckNode?.nodeType !== 'multi-agent') {
+    return true;
+  }
+
+  if (!currentCheckNode?.data?.nodeParam?.query?.trim()) {
+    currentCheckNode.data.nodeParam.queryErrMsg = i18next.t(
+      'workflow.nodes.validation.valueCannotBeEmpty'
+    );
+    return false;
+  }
+
+  currentCheckNode.data.nodeParam.queryErrMsg = '';
+  return true;
+}
+
 function validateQuestionAnswerOptions(currentCheckNode: unknown): boolean {
   if (
     currentCheckNode?.nodeType !== 'question-answer' ||
@@ -674,6 +690,7 @@ function validateServiceIdParams(currentCheckNode: unknown): boolean {
     'question-answer',
     'decision-making',
     'agent',
+    'multi-agent',
     'extractor-parameter',
   ];
 
@@ -720,6 +737,7 @@ export const checkedNodeParams = (currentCheckNode: unknown): boolean => {
     validateIfElseParams,
     validateTextJoinerParams,
     validateAgentParams,
+    validateMultiAgentParams,
     validateQuestionAnswerOptions,
     validateDatabaseParams,
     validateServiceIdParams,

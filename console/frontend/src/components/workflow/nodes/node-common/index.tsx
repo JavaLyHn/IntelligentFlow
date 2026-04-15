@@ -32,6 +32,7 @@ import { DecisionMaking } from '@/components/workflow/nodes/decision-making';
 import { Knowledge } from '@/components/workflow/nodes/knowledge';
 import { QuestionAnswer } from '@/components/workflow/nodes/question-answer';
 import { Agent } from '@/components/workflow/nodes/agent';
+import { MultiAgent } from '@/components/workflow/nodes/multi-agent';
 import Remark from '@/components/workflow/nodes/components/remark';
 import NodeOperation from '@/components/workflow/nodes/components/node-operation';
 import ModelSelect from '@/components/workflow/nodes/components/model-select';
@@ -443,6 +444,7 @@ export const NodeContent = memo<NodeContentProps>(({ id, data }) => {
     isIfElseNode,
     isIteratorNode,
     isAgentNode,
+    isMultiAgentNode,
     showInputs,
     showOutputs,
     showExceptionFlow,
@@ -473,6 +475,7 @@ export const NodeContent = memo<NodeContentProps>(({ id, data }) => {
       {isIfElseNode && <IfElse id={id} data={data} />}
       {isIteratorNode && <Iterator id={id} data={data} />}
       {isAgentNode && <Agent id={id} data={data} />}
+      {isMultiAgentNode && <MultiAgent id={id} data={data} />}
       {showExceptionFlow && <ExceptionContent id={id} data={data} />}
     </div>
   );

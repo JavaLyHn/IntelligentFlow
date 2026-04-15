@@ -44,6 +44,7 @@ export interface UseNodeInfoReturn {
   isIteratorNode: boolean;
   isIteratorChildNode: boolean;
   isAgentNode: boolean;
+  isMultiAgentNode: boolean;
   isStartOrEndNode: boolean;
   isCodeNode: boolean;
   isDataBaseNode: boolean;

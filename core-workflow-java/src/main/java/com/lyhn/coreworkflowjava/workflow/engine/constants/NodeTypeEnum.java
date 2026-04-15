@@ -24,6 +24,10 @@ public enum NodeTypeEnum {
 
     CONDITION_SWITCH_NORMAL_ONE_OF("normal_one_of"),
     CONDITION_SWITCH_INTENT_CHAIN("intent_chain"),
+
+    SKILL("skill"),
+    RESEARCH("research"),
+    MULTI_AGENT("multi-agent"),
     ;
 
     private final String value;

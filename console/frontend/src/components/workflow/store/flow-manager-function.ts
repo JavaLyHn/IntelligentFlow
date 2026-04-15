@@ -376,6 +376,7 @@ export const initFlowData = async (id: string, set): Promise<void> => {
         case 'decision-making':
         case 'extractor-parameter':
         case 'agent':
+        case 'multi-agent':
         case 'knowledge-pro-base':
         case 'question-answer':
           node.data.icon = largeModelNodeIcon;

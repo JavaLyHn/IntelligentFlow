@@ -30,6 +30,9 @@ public class ToolExecutionService {
     @Autowired
     private RedisService redisService;
 
+    @Autowired(required = false)
+    private com.lyhn.coreworkflowjava.workflow.engine.integration.mcp.McpToolAdapter mcpToolAdapter;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     // 执行
@@ -405,8 +408,21 @@ public class ToolExecutionService {
 
             log.info("Executing HTTP call - url: {}{}, method: {}", serverUrl, queryPath, method);
 
-            // 发起最终的 HTTP 请求
-            String result = httpExecutor.doCall(serverUrl + queryPath, method, path, messageQuery, messageHeader, body);
+            // MCP优先路由：如果MCP协议中存在该工具，优先通过MCP调用
+            String result;
+            if (mcpToolAdapter != null && mcpToolAdapter.getMcpToolExecutor().hasTool(toolId)) {
+                log.info("Routing tool '{}' via MCP protocol (priority over HTTP)", toolId);
+                try {
+                    Map<String, Object> mcpResult = mcpToolAdapter.callTool(toolId, body);
+                    result = objectMapper.writeValueAsString(mcpResult);
+                } catch (Exception mcpEx) {
+                    log.warn("MCP call failed for tool '{}', falling back to HTTP: {}", toolId, mcpEx.getMessage());
+                    result = httpExecutor.doCall(serverUrl + queryPath, method, path, messageQuery, messageHeader, body);
+                }
+            } else {
+                // 发起最终的 HTTP 请求
+                result = httpExecutor.doCall(serverUrl + queryPath, method, path, messageQuery, messageHeader, body);
+            }
 
             log.info("HTTP call successful - toolId: {}, operationId: {}, response length: {}",
                     toolId, operationId, result.length());
