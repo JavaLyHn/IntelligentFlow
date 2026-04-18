@@ -1,0 +1,159 @@
+server:
+  port: 7880
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: core-workflow-java
+
+  # 数据库配置
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DB:intelligent-workflow}?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 580000
+      connection-test-query: SELECT 1
+      validation-timeout: 5000
+
+  # Link数据库配置
+  link-datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_LINK_DB:intelligent-link}?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 580000
+      connection-test-query: SELECT 1
+      validation-timeout: 5000
+
+  # Redis 配置
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: 1
+      lettuce:
+        pool:
+          max-active: 20
+          max-idle: 10
+          min-idle: 5
+          max-wait: 3000ms
+  ai:
+    openai:
+      api-key: "${OPENAI_API_KEY:}"
+      audio:
+        speech:
+          api-key: "${OPENAI_API_KEY:}"
+
+  # JSON 配置
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+
+# MyBatis Plus 配置
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  type-aliases-package: com.iflytek.astron.workflow.flow.entity,com.iflytek.astron.link.tools.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    cache-enabled: false
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# Actuator 配置
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+  health:
+    redis:
+      enabled: true
+    db:
+      enabled: true
+
+# 日志配置
+logging:
+  level:
+    root: INFO
+    com.iflytek.astron.workflow: DEBUG
+    org.springframework.web: INFO
+    com.baomidou.mybatisplus: DEBUG
+  pattern:
+    console: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n'
+    file: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n'
+  file:
+    name: /app/logs/workflow-java.log
+    max-size: 100MB
+    max-history: 30
+
+# 工作流配置
+workflow:
+  version: java
+  engine:
+    # 节点执行超时时间（秒）
+    node-timeout: 300
+    # 工作流执行超时时间（秒）
+    workflow-timeout: 600
+
+  # 外部服务配置
+  services:
+    # 模型服务地址
+    model-service-url: ${MODEL_SERVICE_URL:http://console-hub:8080}
+    # AI Tools 服务地址
+    aitools-url: ${AITOOLS_URL:http://localhost:7880}
+    # Python Workflow 服务地址
+    python-workflow-url: ${PYTHON_WORKFLOW_URL:http://core-workflow-python:7880}
+
+# S3(MinIO) 对象存储配置
+s3:
+  endpoint: ${OSS_ENDPOINT:http://localhost:9000}
+  remoteEndpoint: ${OSS_REMOTE_ENDPOINT:http://localhost:9000}
+  accessKey: ${OSS_ACCESS_KEY_ID:}
+  secretKey: ${OSS_ACCESS_KEY_SECRET:}
+  bucket: ${OSS_BUCKET_CONSOLE:console}
+  presignExpirySeconds: ${OSS_PRESIGN_EXPIRY_SECONDS_CONSOLE:600}
+  enablePublicRead: true
+
+# TTS 语音合成配置
+tts:
+  source: ${TTS_SOURCE:qwen}
+
+# 讯飞星火 LLM 配置
+spark:
+  source: spark
+  app-id: ${SPARK_APP_ID:}
+  api-key: ${SPARK_API_KEY:}
+  api-secret: ${SPARK_API_SECRET:}
+  tts-url: ${SPARK_TTS_URL:}
+
+# 阿里云通义千问配置
+qwen:
+  source: qwen
+  api-key: ${QWEN_API_KEY:}
+  model: ${QWEN_MODEL:qwen-plus}
+  tts-url: ${QWEN_TTS_URL:https://dashscope.aliyuncs.com/api/v1}
